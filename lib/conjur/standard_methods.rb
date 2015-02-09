@@ -23,6 +23,8 @@ require 'active_support/dependencies/autoload'
 require 'active_support/core_ext'
 
 module Conjur
+  autoload :Error, 'conjur/error'
+
   module StandardMethods
     
     protected
@@ -39,6 +41,8 @@ module Conjur
       options[:id] = id if id
       resp = RestClient::Resource.new(host, credentials)[type.to_s.pluralize].post(options)
       "Conjur::#{type.to_s.classify}".constantize.build_from_response(resp, credentials)
+    rescue RestClient::Exception => exn
+      raise Error.create(exn.response.body) || exn
     end
     
     def standard_list(host, type, options)
@@ -49,6 +53,8 @@ module Conjur
           send(type, fully_escape(item['id'])).tap { |obj| obj.attributes=item }
         end
       end
+    rescue RestClient::Exception => exn
+      raise Error.create(exn.response.body) || exn
     end
     
     def standard_show(host, type, id)

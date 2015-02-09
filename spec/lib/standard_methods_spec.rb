@@ -19,6 +19,14 @@ describe Conjur::StandardMethods do
     stub_const 'Conjur::Widget', widget_class
   end
 
+  let(:error_body) do
+    '{"error": { "kind": "RecordNotFound", "message": '\
+        '"a descriptive error message", "details": "details of the error" }}'
+  end
+  let(:error) do
+    RestClient::Exception.new error_body.extend RestClient::Response
+  end
+
   describe '#standard_create' do
     let(:id) { "some-id" }
     let(:options) {{ foo: 'bar', baz: 'xyzzy' }}
@@ -31,8 +39,15 @@ describe Conjur::StandardMethods do
       allow(widget_class).to receive(:build_from_response).with(response, credentials).and_return widget
     end
 
+    let(:invoke) { subject.send :standard_create, host, type, id, options }
+
     it "uses restclient to post data and creates an object of the response" do
-      expect(subject.send(:standard_create, host, type, id, options)).to eq(widget)
+      expect(invoke).to eq(widget)
+    end
+
+    it "raises a Conjur::Error on error" do
+      allow(subresource).to receive(:post).and_raise error
+      expect { invoke }.to raise_error Conjur::Error
     end
   end
 
@@ -45,13 +60,20 @@ describe Conjur::StandardMethods do
       allow(subresource).to receive(:get).with(options).and_return json
     end
 
+    let(:invoke) { subject.send :standard_list, host, type, options }
+
     it "gets the list, then builds objects from json response" do
       expect(subject).to receive(:widget).with('one').and_return(one = double)
       expect(one).to receive(:attributes=).with(attrs[0].stringify_keys)
       expect(subject).to receive(:widget).with('two').and_return(two = double)
       expect(two).to receive(:attributes=).with(attrs[1].stringify_keys)
 
-      expect(subject.send(:standard_list, host, type, options)).to eq([one, two])
+      expect(invoke).to eq([one, two])
+    end
+
+    it "raises a Conjur::Error on error" do
+      allow(subresource).to receive(:get).and_raise error
+      expect { invoke }.to raise_error Conjur::Error
     end
   end
 
